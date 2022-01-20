@@ -15,23 +15,32 @@ mongoose.connect(process.env.MONGO_URI, {
   useUnifiedTopology: true,
 });
 
-const ExerciseLogSchema = new Schema({
+const exerciseLogSchema = new Schema({
   usernameId: String,
   description: String,
   duration: Number,
   date: Date,
 });
 
-const ExerciseUserSchema = new Schema({
+const exerciseUserSchema = new Schema({
   username: String,
 });
 
-const exerciseUserModel = mongoose.model("ExerciseUser", ExerciseUserSchema);
+const ExerciseUserModel = mongoose.model("ExerciseUser", exerciseUserSchema);
 
-const exerciseLogModel = mongoose.model("ExerciseLog", ExerciseLogSchema);
+const ExerciseLogModel = mongoose.model("ExerciseLog", exerciseLogSchema);
 
 const findUserById = async (id, done) => {
-  await exerciseUserModel.findOne({ _id: id }, (err, data) => {
+  await ExerciseUserModel.findOne({ _id: id }, (err, data) => {
+    if (err) {
+      return done(err);
+    }
+    return done(null, data);
+  });
+};
+
+const findExerciseByUserId = async (id, done) => {
+  await ExerciseLogModel.find({ usernameId: id }, (err, data) => {
     if (err) {
       return done(err);
     }
@@ -40,7 +49,7 @@ const findUserById = async (id, done) => {
 };
 
 const createExercise = async (id, description, duration, date, done) => {
-  var exerciseLog = new exerciseLogModel({
+  var exerciseLog = new ExerciseLogModel({
     usernameId: id,
     description,
     duration,
@@ -63,7 +72,7 @@ app.get("/", (req, res) => {
 });
 
 app.post("/api/users", async function (req, res) {
-  var newUser = new exerciseUserModel({
+  var newUser = new ExerciseUserModel({
     username: req.body.username,
   });
   await newUser.save((err, data) => {
@@ -106,6 +115,57 @@ app.post("/api/users/:_id/exercises", async function (req, res) {
           }
         }
       );
+    }
+  });
+});
+
+app.get("/api/users/:_id/logs?", async function (req, res) {
+  const { from, to, limit } = req.query;
+  const { _id } = req.params;
+  await findUserById(_id, async (err, data) => {
+    if (err) {
+      res.status(404).statusMessage("Unknown userId");
+    } else if (data) {
+      await findExerciseByUserId(_id, (err, exercises) => {
+        if (err) {
+          res.json(err);
+        } else if (exercises) {
+          const exercisesDto = [];
+          const theLimit =
+            limit !== undefined && limit !== null ? limit : exercises.length;
+          for (
+            let index = 0;
+            index < exercises.length && index < theLimit;
+            index++
+          ) {
+            if (
+              from &&
+              to &&
+              (exercises[index].date < new Date(from) ||
+                exercises[index].date > new Date(to))
+            ) {
+              continue;
+            }
+
+            const newDto = {
+              description: exercises[index].description,
+              duration: exercises[index].duration,
+              date: `${moment(exercises[index].date).format("ddd")} ${moment(
+                exercises[index].date
+              ).format("MMM")} ${String(
+                exercises[index].date.getDate()
+              ).padStart(2, "0")} ${exercises[index].date.getFullYear()}`,
+            };
+            exercisesDto.push(newDto);
+          }
+          res.json({
+            _id,
+            username: data.username,
+            count: exercises.length,
+            logs: exercisesDto,
+          });
+        }
+      });
     }
   });
 });
