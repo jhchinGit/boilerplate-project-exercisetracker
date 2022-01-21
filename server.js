@@ -39,6 +39,15 @@ const findUserById = async (id, done) => {
   });
 };
 
+const findAllUsers = async (done) => {
+  await ExerciseUserModel.find({}, (err, data) => {
+    if (err) {
+      return done(err);
+    }
+    return done(null, data);
+  });
+};
+
 const findExerciseByUserId = async (id, done) => {
   await ExerciseLogModel.find({ usernameId: id }, (err, data) => {
     if (err) {
@@ -90,7 +99,7 @@ app.post("/api/users/:_id/exercises", async function (req, res) {
       res.status(404).statusMessage("Unknown userId");
     } else if (data) {
       const { description, duration, date } = req.body;
-      const dateToSave = new Date(date);
+      const dateToSave = date ? new Date(date) : new Date();
       await createExercise(
         req.params._id,
         description,
@@ -108,7 +117,7 @@ app.post("/api/users/:_id/exercises", async function (req, res) {
               ).format("MMM")} ${String(dateToSave.getDate()).padStart(
                 2,
                 "0"
-              )} ${dateToSave.getFullYear()} `,
+              )} ${dateToSave.getFullYear()}`,
               duration: createData.duration,
               description: createData.description,
             });
@@ -116,6 +125,16 @@ app.post("/api/users/:_id/exercises", async function (req, res) {
         }
       );
     }
+  });
+});
+
+app.get("/api/users", async function (req, res) {
+  await findAllUsers((err, data) => {
+    if (err) {
+      res.json({ error: "Something went wrong." });
+    }
+
+    res.json(data);
   });
 });
 
@@ -162,7 +181,7 @@ app.get("/api/users/:_id/logs?", async function (req, res) {
             _id,
             username: data.username,
             count: exercises.length,
-            logs: exercisesDto,
+            log: exercisesDto,
           });
         }
       });
